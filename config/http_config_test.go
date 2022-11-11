@@ -447,6 +447,37 @@ func TestNewClientFromConfig(t *testing.T) {
 	}
 }
 
+func TestProxyConfiguration(t *testing.T) {
+	testcases := map[string]struct {
+		testdata string
+		isValid  bool
+	}{
+		"good": {
+			testdata: "testdata/http.conf.proxy-headers.good.yml",
+			isValid:  true,
+		},
+		"bad": {
+			testdata: "testdata/http.conf.proxy-headers.bad.yml",
+			isValid:  false,
+		},
+	}
+
+	for name, tc := range testcases {
+		t.Run(name, func(t *testing.T) {
+			_, _, err := LoadHTTPConfigFile(tc.testdata)
+			if tc.isValid {
+				if err != nil {
+					t.Fatalf("Error validating %s: %s", tc.testdata, err)
+				}
+			} else {
+				if err == nil {
+					t.Fatalf("Expecting error validating %s but got %s", tc.testdata, err)
+				}
+			}
+		})
+	}
+}
+
 func TestNewClientFromInvalidConfig(t *testing.T) {
 	var newClientInvalidConfig = []struct {
 		clientConfig HTTPClientConfig
