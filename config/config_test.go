@@ -14,8 +14,13 @@
 package config
 
 import (
+	"bytes"
 	"encoding/json"
+	"net/http"
+	"reflect"
 	"testing"
+
+	"gopkg.in/yaml.v2"
 )
 
 func TestJSONMarshalSecret(t *testing.T) {
@@ -47,6 +52,113 @@ func TestJSONMarshalSecret(t *testing.T) {
 			}
 			if tc.expected != string(c) {
 				t.Fatalf("Secret not marshaled correctly, got '%s'", string(c))
+			}
+		})
+	}
+}
+
+func TestHeaderHttpHeader(t *testing.T) {
+	testcases := map[string]struct {
+		header   Header
+		expected http.Header
+	}{
+		"basic": {
+			header: Header{
+				"single": []Secret{"v1"},
+				"multi":  []Secret{"v1", "v2"},
+				"empty":  []Secret{},
+				"nil":    nil,
+			},
+			expected: http.Header{
+				"single": []string{"v1"},
+				"multi":  []string{"v1", "v2"},
+				"empty":  []string{},
+				"nil":    nil,
+			},
+		},
+		"nil": {
+			header:   nil,
+			expected: nil,
+		},
+	}
+
+	for name, tc := range testcases {
+		t.Run(name, func(t *testing.T) {
+			actual := tc.header.HttpHeader()
+			if !reflect.DeepEqual(actual, tc.expected) {
+				t.Fatalf("expecting: %#v, actual: %#v", tc.expected, actual)
+			}
+		})
+	}
+}
+
+func TestHeaderUnmarshal(t *testing.T) {
+	testcases := map[string]struct {
+		input    string
+		expected Header
+	}{
+		"void": {
+			input: ``,
+		},
+		"simple": {
+			input:    "single:\n- a\n",
+			expected: Header{"single": []Secret{"a"}},
+		},
+		"multi": {
+			input:    "multi:\n- a\n- b\n",
+			expected: Header{"multi": []Secret{"a", "b"}},
+		},
+		"empty": {
+			input:    "empty:\n",
+			expected: Header{"empty": nil},
+		},
+	}
+
+	for name, tc := range testcases {
+		t.Run(name, func(t *testing.T) {
+			var actual Header
+			err := yaml.Unmarshal([]byte(tc.input), &actual)
+			if err != nil {
+				t.Fatalf("error unmarshaling %s: %s", tc.input, err)
+			}
+			if !reflect.DeepEqual(actual, tc.expected) {
+				t.Fatalf("expecting: %#v, actual: %#v", tc.expected, actual)
+			}
+		})
+	}
+}
+
+func TestHeaderMarshal(t *testing.T) {
+	testcases := map[string]struct {
+		input    Header
+		expected []byte
+	}{
+		"void": {
+			input:    nil,
+			expected: []byte("{}\n"),
+		},
+		"simple": {
+			input:    Header{"single": []Secret{"a"}},
+			expected: []byte("single:\n- <secret>\n"),
+		},
+		"multi": {
+			input:    Header{"multi": []Secret{"a", "b"}},
+			expected: []byte("multi:\n- <secret>\n- <secret>\n"),
+		},
+		"empty": {
+			input:    Header{"empty": nil},
+			expected: []byte("empty: []\n"),
+		},
+	}
+
+	for name, tc := range testcases {
+		t.Run(name, func(t *testing.T) {
+			actual, err := yaml.Marshal(tc.input)
+			if err != nil {
+				t.Fatalf("error unmarshaling %#v: %s", tc.input, err)
+			}
+			if !bytes.Equal(actual, tc.expected) {
+				t.Fatalf("expecting: %q, actual: %q", tc.expected, actual)
 			}
 		})
 	}
